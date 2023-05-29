@@ -4,6 +4,7 @@
 #include <vector>
 
 using namespace std;
+
 // Class representing an ATM user
 class User {
 public:
@@ -11,50 +12,39 @@ public:
     string pin;
     double balance;
 
-    User(const string& n, const string& p) {
+    User(const string& n, const string& p, double b) {
         name = n;
         pin = p;
+        balance = b;
     }
-
 };
-
-
-// Function for the menu with choices.
-// Needs to have "Create User", "Login", "Exit".
-// All of which need to be seperate functions that will be run in a Switch case statement.
 
 void CreateUser() {
     string name;
     string pin;
 
     cout << "Enter user name: ";
-        cin >> name;
+    cin >> name;
 
     cout << "Enter PIN code: ";
-        cin >> pin;
+    cin >> pin;
 
-        User newUser(name, pin);
+    User newUser(name, pin, 0.0);
 
-        //balance = 0.0;
-
-        ofstream outputFile("users.txt", ios::app);
-        if (outputFile.is_open()) {
-            outputFile << newUser.name << "," << newUser.pin << "," << "0" << "\n";
-            outputFile.close();
-            cout << "User created successfully.\n";
-
-        }
-        else {
-            cout << "Unable to create the user.\n";
-        }
-            
+    ofstream outputFile("users.txt", ios::app);
+    if (outputFile.is_open()) {
+        outputFile << newUser.name << "," << newUser.pin << "," << newUser.balance << "\n";
+        outputFile.close();
+        cout << "User created successfully.\n";
+    }
+    else {
+        cout << "Unable to create the user.\n";
+    }
 }
 
-bool Login() {
+bool Login(User& loggedInUser) {
     string name;
     string pin;
-
-    bool loginSuccessful = false;
 
     cout << "Enter user name: ";
     cin >> name;
@@ -65,29 +55,186 @@ bool Login() {
     ifstream inputFile("users.txt");
     if (inputFile.is_open()) {
         string line;
+        User tempUser("", "", 0.0);
 
         while (getline(inputFile, line)) {
             string savedName;
             string savedPin;
-            size_t delimiterPos = line.find(',');
+            double savedBalance;
+            size_t delimiterPos1 = line.find(',');
+            size_t delimiterPos2 = line.find(',', delimiterPos1 + 1);
 
-            if (delimiterPos != string::npos) {
-                savedName = line.substr(0, delimiterPos);
-                savedPin = line.substr(delimiterPos + 1, 4);
+            if (delimiterPos1 != string::npos && delimiterPos2 != string::npos) {
+                savedName = line.substr(0, delimiterPos1);
+                savedPin = line.substr(delimiterPos1 + 1, delimiterPos2 - delimiterPos1 - 1);
+                savedBalance = stod(line.substr(delimiterPos2 + 1));
 
                 if (name == savedName && pin == savedPin) {
-                    inputFile.close();
-                    return true;
+                    tempUser = User(savedName, savedPin, savedBalance);
                 }
             }
         }
 
         inputFile.close();
-    } else {
-       cout << " No users found. Please create a user first.\n \n";
+
+        if (!tempUser.name.empty()) {
+            loggedInUser = tempUser;
+            cout << "Login successful.\n";
+            return true;
+        }
+    }
+    else {
+        cout << "No users found. Please create a user first.\n";
     }
 
+    cout << "Login failed. Please try again.\n";
     return false;
+}
+
+void DeleteUser(const string& username) {
+    ifstream inputFile("users.txt");
+    ofstream tempFile("temp.txt");
+
+    if (inputFile.is_open() && tempFile.is_open()) {
+        string line;
+        while (getline(inputFile, line)) {
+            string savedName;
+            string savedPin;
+            double savedBalance;
+            size_t delimiterPos1 = line.find(',');
+            size_t delimiterPos2 = line.find(',', delimiterPos1 + 1);
+
+            if (delimiterPos1 != string::npos && delimiterPos2 != string::npos) {
+                savedName = line.substr(0, delimiterPos1);
+                savedPin = line.substr(delimiterPos1 + 1, delimiterPos2 - delimiterPos1 - 1);
+                savedBalance = stod(line.substr(delimiterPos2 + 1));
+
+                if (savedName != username) {
+                    tempFile << savedName << "," << savedPin << "," << savedBalance << "\n";
+                }
+            }
+        }
+
+        inputFile.close();
+        tempFile.close();
+
+        remove("users.txt");
+        rename("temp.txt", "users.txt");
+
+        cout << "User deleted successfully.\n";
+    }
+    else {
+        cout << "Unable to delete the user.\n";
+    }
+}
+
+void Withdraw(User& user) {
+    double amount;
+    cout << "Enter the amount to withdraw: ";
+    cin >> amount;
+
+    if (amount <= 0) {
+        cout << "Invalid amount.\n";
+        return;
+    }
+
+    if (user.balance < amount) {
+        cout << "Insufficient balance.\n";
+        return;
+    }
+
+    user.balance -= amount;
+
+    // Update user's balance in the file
+    ifstream inputFile("users.txt");
+    ofstream tempFile("temp.txt");
+
+    if (inputFile.is_open() && tempFile.is_open()) {
+        string line;
+        while (getline(inputFile, line)) {
+            string savedName;
+            string savedPin;
+            double savedBalance;
+            size_t delimiterPos1 = line.find(',');
+            size_t delimiterPos2 = line.find(',', delimiterPos1 + 1);
+
+            if (delimiterPos1 != string::npos && delimiterPos2 != string::npos) {
+                savedName = line.substr(0, delimiterPos1);
+                savedPin = line.substr(delimiterPos1 + 1, delimiterPos2 - delimiterPos1 - 1);
+                savedBalance = stod(line.substr(delimiterPos2 + 1));
+
+                if (savedName == user.name && savedPin == user.pin) {
+                    tempFile << savedName << "," << savedPin << "," << user.balance << "\n";
+                }
+                else {
+                    tempFile << line << "\n";
+                }
+            }
+        }
+
+        inputFile.close();
+        tempFile.close();
+
+        remove("users.txt");
+        rename("temp.txt", "users.txt");
+
+        cout << "Withdrawal successful. New balance: " << user.balance << "\n";
+    }
+    else {
+        cout << "Unable to process the withdrawal.\n";
+    }
+}
+
+void Deposit(User& user) {
+    double amount;
+    cout << "Enter the amount to deposit: ";
+    cin >> amount;
+
+    if (amount <= 0) {
+        cout << "Invalid amount.\n";
+        return;
+    }
+
+    user.balance += amount;
+
+    // Update user's balance in the file
+    ifstream inputFile("users.txt");
+    ofstream tempFile("temp.txt");
+
+    if (inputFile.is_open() && tempFile.is_open()) {
+        string line;
+        while (getline(inputFile, line)) {
+            string savedName;
+            string savedPin;
+            double savedBalance;
+            size_t delimiterPos1 = line.find(',');
+            size_t delimiterPos2 = line.find(',', delimiterPos1 + 1);
+
+            if (delimiterPos1 != string::npos && delimiterPos2 != string::npos) {
+                savedName = line.substr(0, delimiterPos1);
+                savedPin = line.substr(delimiterPos1 + 1, delimiterPos2 - delimiterPos1 - 1);
+                savedBalance = stod(line.substr(delimiterPos2 + 1));
+
+                if (savedName == user.name && savedPin == user.pin) {
+                    tempFile << savedName << "," << savedPin << "," << user.balance << "\n";
+                }
+                else {
+                    tempFile << line << "\n";
+                }
+            }
+        }
+
+        inputFile.close();
+        tempFile.close();
+
+        remove("users.txt");
+        rename("temp.txt", "users.txt");
+
+        cout << "Deposit successful. New balance: " << user.balance << "\n";
+    }
+    else {
+        cout << "Unable to process the deposit.\n";
+    }
 }
 
 void ExitProgram() {
@@ -95,66 +242,67 @@ void ExitProgram() {
     exit(0);
 }
 
-int main() {
+void MainMenu() {
     int choice;
-    bool isLoggedIn = false;
+    User loggedInUser("", "", 0.0);
 
     while (true) {
+        cout << "\n=== Main Menu ===\n";
+        cout << "1. Create User\n";
+        cout << "2. Login\n";
+        cout << "3. Exit\n";
+        cout << "Enter your choice: ";
+        cin >> choice;
 
-        if (isLoggedIn == false) {
-            cout << "\n=== Main Menu ===\n";
-            cout << "1. Create User\n";
-            cout << "2. Login\n";
-            cout << "3. Exit\n";
-            cout << "Select an option: ";
-            cin >> choice;
+        switch (choice) {
+        case 1:
+            CreateUser();
+            break;
+        case 2:
+            if (Login(loggedInUser)) {
+                bool loggedIn = true;
+                while (loggedIn) {
+                   
+                    cout << "Hello " << loggedInUser.name << ", your balance is: " << loggedInUser.balance << "\n";
+                    cout << "\n1. Withdraw\n";
+                    cout << "2. Deposit\n";
+                    cout << "3. Delete User\n";
+                    cout << "4. Logout\n";
+                    cout << "Enter your choice: ";
+                    cin >> choice;
 
-            switch (choice) {
-            case 1:
-                CreateUser();
-                break;
-            case 2:
-                if (Login()) {
-                    isLoggedIn = true;
-                    cout << "Login succsessful.\n";
-                } else {
-                    cout << "Login failed. Please try again.\n";
+                    switch (choice) {
+                    case 1:
+                        Withdraw(loggedInUser);
+                        break;
+                    case 2:
+                        Deposit(loggedInUser);
+                        break;
+                    case 3:
+                        DeleteUser(loggedInUser.name);
+                        loggedIn = false;
+                        break;
+                    case 4:
+                        loggedIn = false;
+                        break;
+                    default:
+                        cout << "Invalid choice.\n";
+                        break;
+                    }
                 }
-                break;
-            case 3:
-                ExitProgram();
-                break;
-            default:
-                cout << "Invalid choice. Please try again.\n";
-                break;
             }
+            break;
+        case 3:
+            ExitProgram();
+            break;
+        default:
+            cout << "Invalid choice.\n";
+            break;
         }
-        else {
-            string userName = "Diana";
-            double balance = 100.0;
-
-            switch (choice) {
-                cout << "\n=== Menu ===\n";
-                cout << "Hello ", userName, "your balance is: ", balance, "\n";
-                cout << "1. Withdraw\n";
-                cout << "2. Insert\n";
-                cout << "3. Log out\n";
-                cout << "Select an option: ";
-                cin >> choice;
-            }
-        }
-
     }
-    return 0;
 }
 
-// Function to create a new user and save the user in users.txt
-// If users.txt does not exist create one.
-// Needs to happen in the same function
-
-// Function to login user.
-// Checks the user input variables for user name and password/pin code and compares them to find any similarity in the users.txt file
-// If yes then show a simple string of "Login successfull" otherwise show an error and prompt the user to try login again.
-// Hint: While loop would be good here.
-
-// Function to exit program.
+int main() {
+    MainMenu();
+    return 0;
+}
